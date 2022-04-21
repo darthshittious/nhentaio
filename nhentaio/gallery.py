@@ -1,7 +1,6 @@
 import dataclasses
 import datetime
-
-from typing import List
+from typing import List, Union
 
 from .asset import Asset
 from .taglike import Taglike
@@ -41,7 +40,7 @@ class PartialGallery:
 @dataclasses.dataclass
 class GalleryPage:
     """GalleryPage()
-    
+
     Represents a page from a gallery.
     This class is returned from :attr:`~.Gallery.pages` and should not be instantiated manually.
 
@@ -112,10 +111,13 @@ class Gallery:
         An alias of :attr:`~.Gallery.subtitle` that exists for backwards compatibility. Pending removal.
     """
 
-    id: int
+    id: Union[str, int]
+    media_id: str
     title: str
     subtitle: str
+    scanlator: str
     cover: Asset
+    tags: List[Taglike]
     page_count: int
     uploaded: datetime.datetime
     favourites: int

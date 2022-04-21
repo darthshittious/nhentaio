@@ -1,4 +1,11 @@
+# If extensions (or modules to document with autodoc) are in another directory,
+# add these directories to sys.path here. If the directory is relative to the
+# documentation root, use os.path.abspath to make it absolute, like shown here.
+#
+import os
 import re
+import sys
+
 
 # Configuration file for the Sphinx documentation builder.
 #
@@ -8,29 +15,25 @@ import re
 
 # -- Path setup --------------------------------------------------------------
 
-# If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-#
-import os
-import sys
-sys.path.insert(0, os.path.abspath('../../'))
-sys.path.append(os.path.abspath('extensions'))
+sys.path.insert(0, os.path.abspath("../../"))
+sys.path.append(os.path.abspath("extensions"))
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'nhentaio'
-copyright = '2020, Kaylynn'
-author = 'Kaylynn'
+project = "nhentaio"
+copyright = "2020-Present, Kaylynn234"
+author = "Kaylynn234"
 
 
 # The full version, including alpha/beta/rc tags
 with open("../../nhentaio/__init__.py") as f:
-    release = re.search(r'__version__ = "([\d\.]+)"', f.read(), re.MULTILINE)[1]
+    match = re.search(r'__version__ = "([\d\.]+)"', f.read(), re.MULTILINE)
+    assert match
+    version = match[1]
 
 
-master_doc = 'index'
+master_doc = "index"
 
 # -- General configuration ---------------------------------------------------
 
@@ -38,15 +41,15 @@ master_doc = 'index'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'builder',
-    'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',
-    'sphinxcontrib_trio',
-    'details',  
+    "builder",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinxcontrib_trio",
+    "details",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -59,17 +62,17 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = "alabaster"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
-pygments_style = 'friendly'
+pygments_style = "friendly"
 
-autodoc_member_order = 'bysource'
+autodoc_member_order = "bysource"
 
-master_doc = 'index'
+master_doc = "index"
 
 napoleon_google_docstring = False

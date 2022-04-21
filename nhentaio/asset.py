@@ -1,4 +1,12 @@
+from __future__ import annotations
+
 import dataclasses
+from os import PathLike
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from .http import HTTPClient
 
 
 @dataclasses.dataclass
@@ -14,9 +22,9 @@ class Asset:
     """
 
     url: str
-    _state: "HTTPClient"
+    _state: HTTPClient
 
-    async def read(self):
+    async def read(self) -> bytes:
         """Returns the content of this asset as :class:`bytes`.
 
         Returns
@@ -30,7 +38,7 @@ class Asset:
 
         return self._cached_bytes
 
-    async def save(self, fp):
+    async def save(self, fp: PathLike) -> None:
         """Saves the content of this asset to a file or file-like object.
 
         Parameters
@@ -45,5 +53,4 @@ class Asset:
             with open(fp, "wb") as output_file:
                 output_file.write(result)
         else:
-            fp.write(result)
-
+            fp.write(result)  # type: ignore # what else does this support

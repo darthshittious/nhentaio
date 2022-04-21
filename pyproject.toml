@@ -5,12 +5,48 @@ description = "An asynchronous python library for interacting with nhentai."
 authors = ["Kaylynn <mkaylynn7@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.7" 
+python = "^3.7"
 aiohttp = "^3.7.3"
-lxml = "^4.6.1"
 python-dateutil = "^2.8.1"
 
+sphinx = { version = "^4.0.0", optional = true }
+sphinxcontrib-trio = { version = "*", optional = true }
+
 [tool.poetry.dev-dependencies]
+black = "^22.3.0"
+typing-extensions = "^4.1.1"
+
+[tool.poetry.extras]
+docs = ["sphinx", "sphinxcontrib-trio"]
+
+[tool.black]
+line-length = 125
+target-version = ["py37"]
+
+[tool.isort]
+profile = "black"
+src_paths = ["nhentaio"]
+known_first_party = "nhentaio"
+lines_after_imports = 2
+
+[tool.pyright]
+ignore = ["docs/source/extensions/builder.py", "docs/source/extensions/details.py"]
+useLibraryCodeForTypes = true
+typeCheckingMode = "basic"
+pythonVersion = "3.7"
+strictListInference = true
+strictDictionaryInference = true
+strictSetInference = true
+strictParameterNoneValue = true
+reportMissingImports = "error"
+reportUnusedImport = "error"
+reportUnusedClass = "error"
+reportUnusedFunction = "error"
+reportUnusedVariable = "error"
+reportGeneralTypeIssues = "error"
+reportDuplicateImport = "error"
+reportUntypedFunctionDecorator = "error"
+reportUnnecessaryTypeIgnoreComment = "warning"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -1,12 +1,14 @@
-import asyncio
 import re
-import math
+from typing import TYPE_CHECKING, List, Union
 
 from .enums import SortType
-from .errors import NhentaiError
+from .gallery import Gallery
 from .http import HTTPClient
-from .iterators import ChunkedCoroIterator, CoroIterator
+from .query import Query
 
+
+if TYPE_CHECKING:
+    from ._types.gallery import Gallery as GalleryType
 
 GALLERY_ID_PATTERN = re.compile(r'<h3 id="gallery_id"><span class="hash">#</span>(\d*)</h3>')
 
@@ -15,10 +17,10 @@ class Client:
     """Represents a client that can be used to interact with nhentai."""
 
     def __init__(self) -> None:
-        self.open = True
-        self._state = HTTPClient()
+        self.open: bool = True
+        self._state: HTTPClient = HTTPClient()
 
-    def search(self, query, *, limit=25, sort_by = SortType.recent):
+    async def search(self, query: Union[str, Query], *, limit=25, sort_by=SortType.recent) -> List[Gallery]:
         """Performs an nhentai search with the given query.
 
         .. note::
@@ -46,36 +48,27 @@ class Client:
         :class:`~.AsyncIterator`
             An asynchronous iterator yielding the results that were found.
         """
+        return await self._state.search(query, sort_by=sort_by, limit=limit)
 
-        max_pages = math.ceil(limit / 25)
-        lazy_results = []
-        for i in range(1, max_pages + 1):
-            exact_limit = (limit % 25 if i == max_pages else 25) or 25
-            lazy_results.append(self._state.search(query, page=i, sort_by=sort_by, limit=exact_limit))
-
-        return ChunkedCoroIterator(lazy_results)
-
-    async def fetch_gallery(self, id):
+    async def fetch_gallery(self, id: Union[int, str]) -> Gallery:
         """Fetches a gallery from nhentai with the specified ID.
 
         Parameters
         -----------
-        id: :class:`int`
+        id: Union[:class:`int`, :class:`str`]
             The ID of the gallery to fetch.
 
         Returns
         --------
-        Optional[:class:`~.Gallery`]
-            The gallery with the passed ID, or ``None`` if not found.
+        :class:`~.Gallery`
+            The gallery with the passed ID.
         """
 
-        response = await self._state.route(f"https://nhentai.net/g/{id}", {})
-        try:
-            return await self._state.gallery_from(response, id)
-        except NhentaiError:
-            return None
+        response: GalleryType = await self._state.route(f"https://nhentai.net/g/{id}", {})
 
-    async def random_gallery(self):
+        return await self._state.parse_gallery_payload(response)
+
+    async def random_gallery(self) -> Gallery:
         """Fetches a random gallery from nhentai.
 
         .. note::
@@ -88,11 +81,10 @@ class Client:
             The gallery that was found.
         """
 
-        response = await self._state.route("https://nhentai.net/random", {})
-        gallery_id = re.match(GALLERY_ID_PATTERN, response)
-        return await self._state.gallery_from(response, gallery_id)
+        response: GalleryType = await self._state.route("https://nhentai.net/random", {}, allow_redirects=False)
+        return await self._state.parse_gallery_payload(response)
 
-    def fetch_galleries(self, *args):
+    async def fetch_galleries(self, *args: str) -> List[Gallery]:
         """Fetches multiple galleries using the passed IDs.
 
         Parameters
@@ -102,21 +94,19 @@ class Client:
 
         Returns
         --------
-        :class:`~.AsyncIterator`
-            An asynchronous iterator yielding the galleries that were found.
+        List[:class:`~Gallery`]
+            The galleries returned.
         """
 
-        return CoroIterator([self.fetch_gallery(id) for id in args])
+        ret: List[Gallery] = []
+        for id_ in args:
+            gallery = await self.fetch_gallery(id_)
+            ret.append(gallery)
 
-    def close(self):
+        return ret
+
+    async def close(self) -> None:
         """Closes the internal connection handler and effectively "switches off" the client."""
 
-        asyncio.create_task(self._state.close())
+        await self._state.close()
         self.open = False
-
-    def __del__(self):
-        if self.open:
-            try:
-                self.close()
-            except RuntimeError:
-                pass

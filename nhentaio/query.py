@@ -1,4 +1,11 @@
+from __future__ import annotations
+
 import dataclasses
+from typing import TYPE_CHECKING, Optional, Union
+
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 
 @dataclasses.dataclass
@@ -23,13 +30,14 @@ Weeks.__doc__ = """Represents ``n`` weeks. Used in :meth:`~.Query.uploaded`."""
 Months.__doc__ = """Represents ``n`` months. Used in :meth:`~.Query.uploaded`."""
 Years.__doc__ = """Represents ``n`` years. Used in :meth:`~.Query.uploaded`."""
 
+
 class Query:
     """A helper class for building more complex nhentai search queries."""
 
     def __init__(self):
         self._query = []
 
-    def add(self, *args):
+    def add(self, *args: str) -> Self:
         """Adds terms to the search query.
         This will only return galleries that have each one of ``args`` in their tags or title.
 
@@ -41,10 +49,10 @@ class Query:
             The terms to add to the query.
         """
 
-        self._query.extend(arg.replace("\"", "").strip(" ") for arg in args)
+        self._query.extend(arg.replace('"', "").strip(" ") for arg in args)
         return self
 
-    def exclude(self, *args):
+    def exclude(self, *args: str) -> Self:
         """Excludes terms from the search query.
         This will not return galleries that have any of ``args`` in their tags or title.
 
@@ -56,10 +64,10 @@ class Query:
             The terms to exclude from the query.
         """
 
-        self._query.extend("-{}".format(arg.replace("\"", "").strip(" ")) for arg in args)
+        self._query.extend("-{}".format(arg.replace('"', "").strip(" ")) for arg in args)
         return self
 
-    def parodies(self, *args):
+    def parodies(self, *args: str) -> Self:
         """Limits search results to specific parodies.
 
         This function returns the class instance to allow for fluent-style chaining.
@@ -70,15 +78,19 @@ class Query:
             The parodies to limit this search to.
         """
 
-        self._query.extend("parodies:{}".format(arg.replace("\"", "").strip(" ")) for arg in args)
+        self._query.extend("parodies:{}".format(arg.replace('"', "").strip(" ")) for arg in args)
         return self
 
-    def _single_or_range(self, key, exact = None, less_than = None, more_than = None):
+    def _single_or_range(
+        self,
+        key: str,
+        exact: Optional[Union[_TimeUnit, int]] = None,
+        less_than: Optional[Union[_TimeUnit, int]] = None,
+        more_than: Optional[Union[_TimeUnit, int]] = None,
+    ) -> Self:
         # explicit not-none checks here since 0 may be provided
         if exact and (less_than is not None or more_than is not None):
-            raise ValueError(
-                "You cannot use the exact parameter in conjunction with the less_than and more_than parameters"
-            )
+            raise ValueError("You cannot use the exact parameter in conjunction with the less_than and more_than parameters")
 
         if exact:
             self._query.append(f"{key}:{exact}")
@@ -90,7 +102,13 @@ class Query:
 
         return self
 
-    def pages(self, exact = None, *, less_than = None, more_than = None):
+    def pages(
+        self,
+        exact: Optional[int] = None,
+        *,
+        less_than: Optional[Union[_TimeUnit, int]] = None,
+        more_than: Optional[Union[_TimeUnit, int]] = None,
+    ) -> Self:
         """Limits search results based on page count.
 
         This function returns the class instance to allow for fluent-style chaining.
@@ -102,7 +120,7 @@ class Query:
 
         Parameters
         -----------
-        exact: Union[:class:`int`]
+        exact: Optional[Union[:class:`int`, :class:`~.Hours`, :class:`~.Days`, :class:`~.Weeks`, :class:`~.Months`, :class:`~.Years`]]
             Limits the search results to galleries with exactly ``exact`` pages.
         less_than: Optional[:class:`int`]
             Limits the search results to galleries with less than ``less_than`` pages.
@@ -112,7 +130,13 @@ class Query:
 
         return self._single_or_range("pages", exact, less_than, more_than)
 
-    def uploaded(self, exact = None, *, less_than = None, more_than = None):
+    def uploaded(
+        self,
+        exact: Optional[Union[_TimeUnit, int]] = None,
+        *,
+        less_than: Optional[Union[_TimeUnit, int]] = None,
+        more_than: Optional[Union[_TimeUnit, int]] = None,
+    ) -> Self:
         """Limits search results based on upload date.
 
         This function returns the class instance to allow for fluent-style chaining.
@@ -134,9 +158,9 @@ class Query:
 
         return self._single_or_range("uploaded", exact, less_than, more_than)
 
-    def copy(self):
+    def copy(self) -> Query:
         """Creates a copy of this query.
-        
+
         Returns
         --------
             :class:`~.Query`

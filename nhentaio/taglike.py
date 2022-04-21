@@ -1,4 +1,11 @@
+from __future__ import annotations
+
 import dataclasses
+from typing import TYPE_CHECKING, Type
+
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 
 @dataclasses.dataclass
@@ -24,8 +31,8 @@ class Taglike:
     count: int
 
     @classmethod
-    def from_label(cls, name: str, count_label: str):
+    def from_label(cls: Type[Self], name: str, count_label: str) -> Self:
         return cls(name, int(count_label[:-1]) * 1000 if "K" in count_label else int(count_label))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name

@@ -2,6 +2,7 @@
 
 
 import asyncio
+
 import nhentaio
 
 
@@ -27,7 +28,9 @@ async def main():
     yet_another_query.uploaded(less_than=nhentaio.Years(3), more_than=nhentaio.Days(5))
 
     # Queries can be passed to the search function as you'd expect
-    async for result in client.search(yet_another_query):
+    results = await client.search(query)
+    for result in results:
         print(result.title)
+
 
 asyncio.get_event_loop().run_until_complete(main())

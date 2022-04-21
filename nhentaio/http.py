@@ -1,148 +1,126 @@
-import re
+from __future__ import annotations
 
-from collections import defaultdict, namedtuple
+import datetime
+import re
+from typing import TYPE_CHECKING, Any, Dict, List, NamedTuple, Optional, Union
 
 import aiohttp
 
-from dateutil import parser
-from lxml import html
+from nhentaio.enums import SortType
 
 from .asset import Asset
-from .errors import NhentaiError, NotFound
-from .gallery import Gallery, GalleryPage, PartialGallery
+from .errors import NHentaiError
+from .gallery import Gallery
+from .query import Query
 from .taglike import Taglike
 
 
+if TYPE_CHECKING:
+    from ._types.gallery import Gallery as GalleryType
+    from ._types.requests import SearchPayload
+
 NHENTAI_ACTUAL_ID_PATTERN = re.compile(r'data-src="https://t\.nhentai\.net/galleries/(\d+)/\w+\.jpg"')
 NHENTAI_ID_PATTERN = re.compile(r"/g/(\d*)/")
-NHENTAI_RESULT_COUNT_PATTERN = re.compile(r'\s*(\d+)\s*results')
+NHENTAI_RESULT_COUNT_PATTERN = re.compile(r"\s*(\d+)\s*results")
 
 TITLE_PREFIX = "/html/body/div[2]/div[1]/div[2]/div"
 
-GalleryTags = namedtuple("GalleryTags", "tags pages date")
-RawSearchResults = namedtuple("RawSearchResults", "total results")
+
+class GalleryTags(NamedTuple):
+    tags: Dict[str, List[Taglike]]
+    pages: int
+    date: datetime.datetime
+
+
+class RawSearchResults(NamedTuple):
+    total: int
+    results: ...
 
 
 class HTTPClient:
     def __init__(self) -> None:
+        self._session: Optional[aiohttp.ClientSession] = None
+
+    async def _create_session(self) -> aiohttp.ClientSession:
         self._session = aiohttp.ClientSession()
+        return self._session
 
-    def parse_partial_gallery(self, tree, prefix, *, position):
-        # I would grab the img element here, but because of lazyload strangeness a result is not guaranteed
-        element = tree.xpath(f"{prefix}/div[{position}]/a")
-        if not element:
-            return None  # no more results on this page
-        else:
-            element = element[0]
+    async def route(self, url: str, params: Dict[str, str], *, allow_redirects: bool = True) -> Any:
+        if not self._session:
+            await self._create_session()
+            assert self._session is not None
 
-        gallery_caption = tree.xpath(f"{prefix}/div[{position}]/a/div")[0]
-        gallery_id = re.match(NHENTAI_ID_PATTERN, element.get("href"))[1]
-
-        return PartialGallery(
-            id=gallery_id,
-            title=gallery_caption.text,
-            thumbnail=Asset(f"https://t.nhentai.net/galleries/{gallery_id}/thumb.jpg", self),
-            url=f"https://nhentai.net/g/{gallery_id}/"
-        )
-
-    def parse_tags(self, tree, prefix):
-        taglikes = defaultdict(list)
-        tag_section = tree.xpath(f"{prefix}")[0]
-
-        # This is each "type" of tag; tags themselves, parody tags, artist tags, and so on.
-        # We skip the last two items since those are the page count and upload dates, which aren't "real" tags.
-        for tag_container in tag_section[:-2]:
-            tag_type = tag_container.text.lower().strip(" \t\n")[:-1]
-            for name, count in [(item[0], item[1]) for item in tag_container[0]]:
-                taglikes[tag_type].append(Taglike.from_label(name.text, count.text))
-
-        pages = int(tag_section[-2][0][0][0].text)
-        date = parser.parse(tag_section[-1][0][0].get("datetime"))
-
-        return GalleryTags(dict(taglikes), pages, date)
-
-
-    async def route(self, url, parameters):
-        async with self._session.get(url, params=parameters) as response:
-            if 300 > response.status >= 200:
-                return await response.text()
+        async with self._session.get(url, params=params, allow_redirects=allow_redirects) as response:
+            if allow_redirects:
+                if 300 > response.status >= 200:
+                    return await response.json()
+                else:
+                    raise NHentaiError(f"Error {response.status}: Invalid response :: {response.headers}")
             else:
-                raise NhentaiError(f"Error {response.status}: Invalid response")
+                if response.status == 302:
+                    ## this looks like it returns this code for /random/
+                    new_digits = response.headers["location"]  # /g/xxxxx/
+                    await self.route(
+                        url.replace("/random/", f"/api/gallery/{new_digits}"), params=params, allow_redirects=True
+                    )
 
-    async def image_from_url(self, url):
-        async with self._session.get(url) as response:
+    async def image_from_url(self, url: str) -> bytes:
+        session = self._session or await self._create_session()
+
+        async with session.get(url) as response:
             if 300 > response.status >= 200:
                 return await response.read()
             else:
-                raise NhentaiError(f"Error {response.status} when attempting to read image")
+                raise NHentaiError(f"Error {response.status} when attempting to read image.")
 
-    async def galleries_from(self, response, *, limit):
-        tree = html.fromstring(response)
-        results = []
+    async def parse_gallery_payload(self, payload: GalleryType) -> Gallery:
+        id_ = payload["id"]
+        media_id = payload["media_id"]
+        title = payload["title"]
+        images = payload["images"]
+        scanlator = payload["scanlator"]
+        upload_date = datetime.datetime.fromtimestamp(payload["upload_date"])
+        tags_ = payload["tags"]
+        tags = [Taglike(tag["name"], tag["count"]) for tag in tags_]
+        num_pages = payload["num_pages"]
+        num_favorites = payload["num_favorites"]
 
-        for i in range(1, limit + 1):
-            gallery = self.parse_partial_gallery(tree, "/html/body/div[2]/div[2]", position=i)
-            if not gallery:
+        cover = Asset(images["cover"]["t"], self)
+
+        return Gallery(
+            id=id_,
+            media_id=media_id,
+            title=(title.get("english") or title.get("japanese")) or "Untitled",
+            subtitle=title.get("pretty", "No subtitle"),
+            scanlator=scanlator,
+            cover=cover,
+            tags=tags,
+            page_count=num_pages,
+            uploaded=upload_date,
+            favourites=num_favorites,
+            url=f"https://nhentai.net/g/{id_}/",
+        )
+
+    async def galleries_from(self, response: SearchPayload, limit: Optional[int]) -> List[Gallery]:
+        results: List[Gallery] = []
+
+        for idx, payload in enumerate(response["result"], start=1):
+            if limit and idx > limit:
                 break
+
+            gallery = await self.parse_gallery_payload(payload)
 
             results.append(gallery)
 
         return results
 
-    async def gallery_from(self, response, id):
-        tree = html.fromstring(response)
-        tags = self.parse_tags(tree, prefix='//*[@id="tags"]')
+    async def search(self, query: Union[str, Query], *, sort_by: SortType, limit: Optional[int] = None) -> List[Gallery]:
+        request_parameters: Dict[str, str] = {"query": str(query), "sort": str(sort_by)}
 
-        # For some bizarre reason, the ID in image URLs and the gallery ID can differ.
-        image_id = re.search(NHENTAI_ACTUAL_ID_PATTERN, response)[1]
-
-        # The "[1:-1]" is here to get rid of the enclosing brackets
-        favourites = tree.xpath("/html/body/div[2]/div[1]/div[2]/div/div/a[1]/span/span")[0].text[1:-1]
-        pages = [GalleryPage.from_id_and_count(image_id, i, self) for i in range(1, tags.pages + 1)]
-        similar = [self.parse_partial_gallery(tree, '//*[@id="related-container"]', position=i) for i in range(6)]
-
-        # Element.text may be None, so filtering it (in some way) is required.
-        raw_title = filter(None, (element.text for element in tree.xpath(f"{TITLE_PREFIX}/h1")[0]))
-        # There may be extraneous spaces at either end of the string.
-        title = "".join(raw_title).strip(" ")
-
-        # There may not be a subtitle - see gallery 177013 for details. No, I was not the one who found this issue.
-        # https://github.com/kaylynn234/nhentaio/issues/1
-        try:
-            raw_subtitle = filter(None, (element.text for element in tree.xpath(f"{TITLE_PREFIX}/h2")[0]))
-            subtitle = "".join(raw_subtitle).strip(" ")  # See comment about extraneous spaces above.
-        except IndexError:  # No elements in xpath
-            subtitle = None
-
-        return Gallery(
-            id=id,
-            title=title,
-            subtitle=subtitle,
-            cover=Asset(f"https://t.nhentai.net/galleries/{image_id}/cover.jpg", self),
-            page_count=tags.pages,
-            uploaded=tags.date,
-            favourites=favourites,
-            url=f"https://nhentai.net/g/{id}/",
-            pages=pages,
-            similar=similar,
-            **tags.tags
-        )
-
-    async def search(self, query, *, page, sort_by, limit):
-        request_parameters = {
-            "q": query,
-            "sort": str(sort_by),
-            "page": page
-        }
-
-        search_result = await self.route("https://nhentai.net/search", request_parameters)
-        result_count = re.search(NHENTAI_RESULT_COUNT_PATTERN, search_result)[1]
-
-        # don't bother parsing; there are no results
-        if not int(result_count):
-            raise NotFound("No results found!")
+        search_result: SearchPayload = await self.route("https://nhentai.net/api/galleries/search", request_parameters)
 
         return await self.galleries_from(search_result, limit=limit)
 
     async def close(self):
-        await self._session.close()
+        if self._session is not None:
+            await self._session.close()

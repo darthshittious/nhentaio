@@ -4,21 +4,26 @@ Nhentai API Wrapper
 
 An asynchronous, read-only nhentai API wrapper for the damned, depraved, and disillusioned.
 
-:copyright: (c) 2020 Kaylynn
+:copyright: (c) 2020-Present Kaylynn234
 :license: MIT, see LICENSE for more details.
 
 """
 
-__title__ = "nhentaio"
-__author__ = "Kaylynn"
-__license__ = "MIT"
-__copyright__ = "Copyright 2020 Kaylynn"
-__version__ = "0.3.0"
+__title__: str = "nhentaio"
+__author__: str = "Kaylynn"
+__license__: str = "MIT"
+__copyright__: str = "Copyright 2020-Present Kaylynn234"
+__version__: str = "0.3.0"
 
-from .client import Client
-from .enums import SortType
+from .client import Client as Client
+from .enums import SortType as SortType
 from .errors import *
-from .gallery import Gallery, GalleryPage, PartialGallery
-from .iterators import NoMoreItems
-from .query import Hours, Days, Weeks, Months, Years, Query
-
+from .gallery import Gallery as Gallery
+from .gallery import GalleryPage as GalleryPage
+from .gallery import PartialGallery as PartialGallery
+from .query import Days as Days
+from .query import Hours as Hours
+from .query import Months as Months
+from .query import Query as Query
+from .query import Weeks as Weeks
+from .query import Years as Years
